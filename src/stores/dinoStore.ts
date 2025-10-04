@@ -1,19 +1,22 @@
 import { create } from "zustand";
 
 export type Dino = {
-  id: string;
+  occurrence_no: string;
   name: string;
   era: string;
-  lat: number;
-  lng: number;
+  position: [number, number];
 };
 
 type DinoState = {
-  dinos: Dino[];
-  setDinos: (dinos: Dino[]) => void;
+  cache: Record<string, Dino[]>;
+  setCache: (key: string, dinos: Dino[]) => void;
+  getDinos: (key: string) => Dino[] | undefined;
 };
 
-export const useDinoStore = create<DinoState>((set) => ({
-  dinos: [],
-  setDinos: (dinos) => set({ dinos }),
+export const useDinoStore = create<DinoState>((set, get) => ({
+  cache: {},
+  setCache: (key, dinos) => set((state) => ({
+    cache: { ...state.cache, [key]: dinos }
+  })),
+  getDinos: (key) => get().cache[key],
 }));

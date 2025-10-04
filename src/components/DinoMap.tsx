@@ -1,23 +1,101 @@
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { useEffect, useRef, useState } from "react";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  useMapEvents,
+} from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import api from "../api/axios";
+import { useDinoStore } from "../stores/dinoStore";
 
-// Fix para íconos en Leaflet + Vite
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl:
-    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-});
+type Dino = { occurrence_no: string; name: string; position: [number, number] };
+
+function boundsToKey(bounds: L.LatLngBounds) {
+  const sw = bounds.getSouthWest();
+  const ne = bounds.getNorthEast();
+  return `${sw.lat.toFixed(2)},${sw.lng.toFixed(2)},${ne.lat.toFixed(
+    2
+  )},${ne.lng.toFixed(2)}`;
+}
+
+function DinoBoundsLoader({
+  onBoundsChange,
+}: {
+  onBoundsChange: (bounds: L.LatLngBounds) => void;
+}) {
+  useMapEvents({
+    moveend: (e) => {
+      onBoundsChange(e.target.getBounds());
+    },
+    zoomend: (e) => {
+      onBoundsChange(e.target.getBounds());
+    },
+  });
+  return null;
+}
 
 export default function DinoMap() {
+  const [dinos, setDinos] = useState<Dino[]>([]);
+  const boundsRef = useRef<L.LatLngBounds | null>(null);
+
+  const setCache = useDinoStore((state) => state.setCache);
+  const getDinos = useDinoStore((state) => state.getDinos);
+
+  const fetchDinos = (bounds: L.LatLngBounds) => {
+    const key = boundsToKey(bounds);
+    const cached = getDinos(key);
+    if (cached) {
+      setDinos(cached);
+      return;
+    }
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    api
+      .get(
+        `/dinosaurs?swLat=${sw.lat}&swLng=${sw.lng}&neLat=${ne.lat}&neLng=${ne.lng}`
+      )
+      .then((res) => {
+        const dinos = res.data.map((d: any) => ({
+          ...d,
+          position: [d.lat, d.lng] as [number, number],
+        }));
+        setCache(key, dinos);
+        setDinos(dinos);
+      });
+  };
+
+  useEffect(() => {
+    const initialBounds = L.latLngBounds([
+      [15, -120],
+      [45, -60],
+    ]);
+    fetchDinos(initialBounds);
+    boundsRef.current = initialBounds;
+    // eslint-disable-next-line
+  }, []);
+
+  const handleBoundsChange = (bounds: L.LatLngBounds) => {
+    if (!boundsRef.current || !boundsRef.current.equals(bounds)) {
+      fetchDinos(bounds);
+      boundsRef.current = bounds;
+    }
+  };
+
   return (
-    <MapContainer center={[0, 0]} zoom={3} className="h-screen w-full">
+    <MapContainer center={[30, -90]} zoom={3} className="h-screen w-full">
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-      <Marker position={[30, -90]}>
-        <Popup>🦖 Tiranosaurio Rex</Popup>
-      </Marker>
+      <DinoBoundsLoader onBoundsChange={handleBoundsChange} />
+      <MarkerClusterGroup>
+        {dinos.map((dino) => (
+          <Marker key={dino.occurrence_no} position={dino.position}>
+            <Popup>🦖 {dino.name}</Popup>
+          </Marker>
+        ))}
+      </MarkerClusterGroup>
     </MapContainer>
   );
 }
