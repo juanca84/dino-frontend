@@ -69,9 +69,10 @@ export default function DinoMap() {
   };
 
   useEffect(() => {
+    // Bounds that roughly cover the continental United States
     const initialBounds = L.latLngBounds([
-      [15, -120],
-      [45, -60],
+      [24.396308, -124.848974], // SW corner (southern CA/HI line approx)
+      [49.384358, -66.885444], // NE corner (northern ME)
     ]);
     fetchDinos(initialBounds);
     boundsRef.current = initialBounds;
@@ -86,7 +87,12 @@ export default function DinoMap() {
   };
 
   return (
-    <MapContainer center={[30, -90]} zoom={3} className="h-screen w-full">
+    <MapContainer
+      // Centered on the geographic center of the contiguous United States
+      center={[39.8283, -98.5795]}
+      zoom={5}
+      className="h-screen w-full"
+    >
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       <DinoBoundsLoader onBoundsChange={handleBoundsChange} />
       <MarkerClusterGroup>
